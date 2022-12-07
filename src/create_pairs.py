@@ -134,7 +134,7 @@ def _preprocess_terms(terms: list):
                 if k in only_terms:
                     v = round(((v + only_terms.get(k)) / 2), 3)
                     only_terms.remove(k)
-                only_terms.append({k: v})
+                only_terms.append({k.strip(): v})
 
         only_terms = dict(ChainMap(*only_terms))
         only_5_char = {k: v for k, v in only_terms.items() if len(k) == 5}
