@@ -137,4 +137,4 @@ dmypy.json
 #Generation scripts
 image_datasets/*
 src/terms_*
-src/wordhoard_error.yml
+src/wordhoard_error.yaml
