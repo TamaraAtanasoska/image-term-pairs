@@ -127,3 +127,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+#OS
+.DS_Store
+
+#Editor
+*.swp
+
+#Generation scripts
+image_datasets/*
+src/terms_*
+src/wordhoard_error.yaml
