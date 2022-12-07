@@ -4,11 +4,11 @@ import requests
 import pathlib
 import os
 import time
-import random
 import re
 import uuid
 
 from collections import ChainMap
+from random import choice
 
 from profanity_check import predict_prob
 from wordhoard import Synonyms, Hypernyms
@@ -20,15 +20,13 @@ def _build_syn_hyp_list(words: list, weight: float):
     given list of words and a set weight for all words of type and makes word:weight
     pairs. Additionally, there is profanity check.
     """
-    word_list = []
+    weighted = []
     if isinstance(words, list):
         if "spelled correctly" in words[0]:
-            word_list = []
+            weighted = []
         else:
-            for word in words:
-                if predict_prob([word]) < 0.5:
-                    word_list.append({word: weight})
-    return dict(ChainMap(*word_list))
+            [weighted.append({w: weight}) for w in words if predict_prob([w]) < 0.5]
+    return dict(ChainMap(*weighted))
 
 
 def get_syn_hyper(word: str):
@@ -63,9 +61,9 @@ def get_related_terms(word: str):
     return dict(ChainMap(*terms))
 
 
-def generate_file(sysnets_words: list):
+def generate_file(synsets_words: list):
     """
-        This function takes the words associated with each sysnet and generates a
+        This function takes the words associated with each synset and generates a
     file with their synonyms, hypernims, hyponims and weighted related terms from
     ConceptNet. Some APIs have a very low limit on calls, and a long wait time
     is necessary, additionally because of a bug in the library."
@@ -74,14 +72,14 @@ def generate_file(sysnets_words: list):
     filename = str("terms_" + str(uuid.uuid4())) + ".json"
     file_path = os.getcwd() + "/" + filename
 
-    print("Number of words to process: ", len(sysnets_words))
-    for num_word, word in enumerate(sysnets_words):
+    print("Number of words to process: ", len(synsets_words))
+    for num_word, word in enumerate(synsets_words):
         related_terms = get_related_terms(word[1])
         synonyms, hypernyms = get_syn_hyper(word[1])
 
         term_list.append(
             [
-                {"Sysnet": word[0]},
+                {"Synset": word[0]},
                 {"Word": {word[1]: 1}},
                 {"Synonyms": synonyms},
                 {"Hypernyms": hypernyms},
@@ -103,27 +101,22 @@ def generate_file(sysnets_words: list):
     return file_path
 
 
-def sysnet_to_word(path: pathlib.Path):
+def synset_to_word():
     """
-        This function generates a list of available sysnets in the image directory
+        This function generates a list of available synsets in the image directory
     and their idenfifying words. It takes the path ts the image directory and the
     file that lists all available ImageNet words, then creates a joint list.
     """
     cur_dir = os.getcwd()
 
-    os.chdir(path)
-    sysnets = [name for name in os.listdir(".") if os.path.isdir(name)]
+    os.chdir(args.image_path)
+    synsets = [name for name in os.listdir(".") if os.path.isdir(name)]
 
     os.chdir(cur_dir)
     lines = [
         re.split(r"[ ]*[,\t\n][ ]*", x.strip()) for x in open("words.txt").readlines()
     ]
-    sysnets_words = []
-    for line in lines:
-        for sysnet in sysnets:
-            if sysnet == line[0]:
-                sysnets_words.append([line[0], line[1]])
-    return sysnets_words
+    return [[l[0], l[1]] for l in lines if s == l[0] for s in synsets]
 
 
 def _preprocess_terms(terms: list):
@@ -134,17 +127,18 @@ def _preprocess_terms(terms: list):
     """
     all_terms = []
     for term in terms:
-        trimmed = []
-        for term_types in term[1:]:
-            for key, val in term_types.items():
-                for k, v in val.items():
-                    if len(k) == 5:
-                        for d in trimmed:
-                            if k in d:
-                                v = round(((v + d.get(k)) / 2), 3)
-                                trimmed.remove(d)
-                        trimmed.append({k: v})
-        all_terms.append([*term[0].values(), dict(ChainMap(*trimmed))])
+        one_dict = {k: v for d in term for k, v in d.items() if k != "Synset"}
+        only_terms = []
+        for values in one_dict.values():
+            for k, v in values.items():
+                if k in only_terms:
+                    v = round(((v + only_terms.get(k)) / 2), 3)
+                    only_terms.remove(k)
+                only_terms.append({k: v})
+
+        only_terms = dict(ChainMap(*only_terms))
+        only_5_char = {k: v for k, v in only_terms.items() if len(k) == 5}
+        all_terms.append([*term[0].values(), only_5_char])
     return all_terms
 
 
@@ -153,46 +147,41 @@ def _reduce_by_difficulty(pairs: list):
     This function applies a difficulty filter. An association between words is
     considedred easier the closer it is to 1.
     """
-    diff_terms = []
+    all_terms = []
+    diff = args.difficulty
     for sys in pairs:
-        trimmed = []
-        for k, v in sys[1].items():
-            if sys[1].get(k) >= args.difficulty:
-                trimmed.append({k: v})
-        if trimmed:
-            diff_terms.append([sys[0], dict(ChainMap(*trimmed))])
-    return diff_terms
+        terms = []
+        [terms.append({k: v}) for k, v in sys[1].items() if sys[1].get(k) >= diff]
+        if terms:
+            all_terms.append([sys[0], dict(ChainMap(*terms))])
+    return all_terms
 
 
-def _reduce_per_sysnet(pairs: list):
+def _reduce_per_synset(pairs: list):
     """
-    This function applies a filter reducing the number of pairs for each Sysnet.
+    This function applies a filter reducing the number of pairs for each Synsnet.
     """
     reduced_terms = []
     for sys in temp_pairs:
         reduced_terms.append(
-            [sys[0], {k: sys[1][k] for k in list(sys[1])[: args.per_sysnet]}]
+            [sys[0], {k: sys[1][k] for k in list(sys[1])[: args.per_synset]}]
         )
     return reduced_terms
 
 
-def _create_final_pairs_file(pairs: list, images_path: pathlib.Path):
+def _create_final_pairs_file(pairs: list):
     """
     This function writes to a .tsv file with the final version of the pairs to be
     used in the game.
     """
     cur_dir = os.getcwd()
 
-    os.chdir(images_path)
+    os.chdir(args.image_path)
     final_pairs = []
     for pair in pairs:
         for term in pair[1].items():
             image_path = (
-                os.getcwd()
-                + "/"
-                + pair[0]
-                + "/"
-                + str(random.choice(os.listdir(pair[0])))
+                os.getcwd() + "/" + pair[0] + "/" + str(choice(os.listdir(pair[0])))
             )
             final_pairs.append(term[0] + "\t" + image_path + "\n")
 
@@ -205,34 +194,30 @@ def _create_final_pairs_file(pairs: list, images_path: pathlib.Path):
 
 def create_pairs(args: argparse.Namespace):
     """
-        The main function to create the pairs. Retrieves the sysnets, words and all
+        The main function to create the pairs. Retrieves the synsets, words and all
     required related terms, then makes custom defined pairs according to the
     parameters passed to the script. To skip the generation and go direclty to
     pair creation, a generated terms file needs to be passed.
     """
     terms_file = ""
     if not args.terms_path:
-        sysnets_words = sysnet_to_word(args.image_path)
-        terms_file = generate_file(sysnets_words)
+        synsets_words = synset_to_word()
+        terms_file = generate_file(synsets_words)
     else:
         terms_file = args.terms_path
 
     with open(terms_file, "r") as terms:
         possible_pairs = _preprocess_terms(json.loads(terms.read()))
 
-    temp_pars = []
+    temp_pairs = possible_pairs
     if args.difficulty:
-        temp_pairs = _reduce_by_difficulty(possible_pairs)
-    else:
-        temp_pairs = possible_pairs
-
-    if args.per_sysnet:
         temp_pairs = _reduce_by_difficulty(temp_pairs)
+    elif args.per_synset:
+        temp_pairs = _reduce_by_difficulty(temp_pairs)
+    elif args.num_synsets:
+        temp_pairs = [random.choice(temp_pairs) for _ in range(args.num_synsets)]
 
-    if args.num_sysnets:
-        temp_pairs = [random.choice(temp_pairs) for _ in range(args.num_sysnets)]
-
-    _create_final_pairs_file(temp_pairs, args.image_path)
+    _create_final_pairs_file(temp_pairs)
 
 
 if __name__ == "__main__":
@@ -256,15 +241,15 @@ if __name__ == "__main__":
         required=False,
     )
     parser.add_argument(
-        "--num_sysnets",
+        "--num_synsets",
         type=int,
         help="Number of pairs",
         required=False,
     )
     parser.add_argument(
-        "--per_sysnet",
+        "--per_synset",
         type=int,
-        help="Number of pairs per Sysnet",
+        help="Number of pairs per Synset",
         required=False,
     )
     args = parser.parse_args()
