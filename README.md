@@ -19,7 +19,7 @@ To generate term-image pairs, you will have to run the [create_pairs.py](src/cre
 The term-image pair creation process is as follows:
 1. The script takes the folder with ImageNet Synsets and finds the term that identifies each in the words.txt file. 
 2. Related synonyms, hypernyms and ConceptNet related terms are retrieved. This step might last for a while because of the API limits. 
-3. An intermediate terms_*.json file is generated with all the terms, scored for relatedness to the original word. 
+3. An intermediate terms_*.json file is generated with all the terms, scored for relatedness to the original word and frequency of the word found in various corpora. 
 4. The term-image pairs are built taking the constraints passed into consideration. 
 
 Note: currently when the term-image pairs are built a random image is picked from the available from the Synset. 
@@ -30,6 +30,7 @@ python src/create_pairs.py
 --image_path #REQUIRED path to the images
 --terms_path #path to a file with scored related terms
 --difficulty #a score between 0-1 for relatedness between term and image
+--frequency #frequency of word in copora, score between 0-8
 --num_synsets #how many synsets for the pairs
 --per_synset #how many pairs per synset
 ```
