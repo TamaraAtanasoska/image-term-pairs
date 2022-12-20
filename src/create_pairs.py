@@ -43,7 +43,7 @@ def _build_syn_hyp_list(words: list, weight: float):
 
 def get_syn_hyper(word: str):
     """
-        A function to all the wordhoard related APIs and retrieve a given word's
+    A function to all the wordhoard related APIs and retrieve a given word's
     synonyms and hypernyms.
     """
     synonym = Synonyms(search_string=word)
@@ -59,7 +59,7 @@ def get_syn_hyper(word: str):
 
 def get_related_terms(word: str):
     """
-        This function calls the ConceptNet API and gets the 10 most related
+    This function calls the ConceptNet API and gets the 10 most related
     terms and their weights.
     """
     obj = requests.get(
@@ -75,7 +75,7 @@ def get_related_terms(word: str):
 
 def generate_file(synsets_words: list):
     """
-        This function takes the words associated with each synset and generates a
+    This function takes the words associated with each synset and generates a
     file with their synonyms, hypernims, hyponims and weighted related terms from
     ConceptNet. Some APIs have a very low limit on calls, and a long wait time
     is necessary, additionally because of a bug in the library."
@@ -115,7 +115,7 @@ def generate_file(synsets_words: list):
 
 def synset_to_word():
     """
-        This function generates a list of available synsets in the image directory
+    This function generates a list of available synsets in the image directory
     and their idenfifying words. It takes the path ts the image directory and the
     file that lists all available ImageNet words, then creates a joint list.
     """
@@ -169,6 +169,21 @@ def _reduce_by_difficulty(pairs: list):
     return all_terms
 
 
+def _reduce_by_frequency(pairs: list):
+    """
+    This function applies a word frequency filter. It is taken from multiple
+    different corpuses. The higher, the more frequent. More here:
+    https://github.com/rspeer/wordfreq#usage
+    """
+    all_terms = []
+    freq = args.frequency
+    for syn in pairs:
+        terms = [term for s, term in syn.items() if term[0][2] >= freq]
+        if terms:
+            all_terms.append({list(syn.keys())[0]: terms[0]})
+    return all_terms
+
+
 def _reduce_per_synset(pairs: list):
     """
     This function applies a filter reducing the number of pairs for each Synsnet.
@@ -206,7 +221,7 @@ def _create_final_pairs_file(pairs: list):
 
 def create_pairs(args: argparse.Namespace):
     """
-        The main function to create the pairs. Retrieves the synsets, words and all
+    The main function to create the pairs. Retrieves the synsets, words and all
     required related terms, then makes custom defined pairs according to the
     parameters passed to the script. To skip the generation and go direclty to
     pair creation, a generated terms file needs to be passed.
@@ -228,6 +243,8 @@ def create_pairs(args: argparse.Namespace):
         temp_pairs = _reduce_per_synset(temp_pairs)
     elif args.num_synsets:
         temp_pairs = [choice(temp_pairs) for _ in range(args.num_synsets)]
+    elif args.frequency:
+        temp_pairs = _reduce_by_frequency(temp_pairs)
 
     _create_final_pairs_file(temp_pairs)
 
