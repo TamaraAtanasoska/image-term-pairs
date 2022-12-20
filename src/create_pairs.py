@@ -8,10 +8,20 @@ import re
 import uuid
 
 from collections import ChainMap
+from itertools import chain
 from random import choice
 
 from profanity_check import predict_prob
+from wordfreq import zipf_frequency
 from wordhoard import Synonyms, Hypernyms
+
+
+def _add_word_details(word: str, weight: float):
+    return {
+        "Term": word.strip(),
+        "Relatedness": weight,
+        "Frequency": zipf_frequency(word, "en"),
+    }
 
 
 def _build_syn_hyp_list(words: list, weight: float):
@@ -25,8 +35,10 @@ def _build_syn_hyp_list(words: list, weight: float):
         if "spelled correctly" in words[0]:
             weighted = []
         else:
-            [weighted.append({w: weight}) for w in words if predict_prob([w]) < 0.5]
-    return dict(ChainMap(*weighted))
+            words = [w for w in words if predict_prob([w]) < 0.5]
+            for w in words:
+                weighted.append(_add_word_details(w, weight))
+    return weighted
 
 
 def get_syn_hyper(word: str):
@@ -57,8 +69,8 @@ def get_related_terms(word: str):
     for term in obj["related"]:
         word = term.get("@id").split("/")[-1].replace("_", " ")
         if predict_prob([word]) < 0.5:
-            terms.append({word: term.get("weight")})
-    return dict(ChainMap(*terms))
+            terms.append(_add_word_details(word, term.get("weight")))
+    return terms
 
 
 def generate_file(synsets_words: list):
@@ -73,14 +85,14 @@ def generate_file(synsets_words: list):
     file_path = os.getcwd() + "/" + filename
 
     print("Number of words to process: ", len(synsets_words))
-    for num_word, word in enumerate(synsets_words):
+    for num_word, word in enumerate(synsets_words[:20]):
         related_terms = get_related_terms(word[1])
         synonyms, hypernyms = get_syn_hyper(word[1])
 
         term_list.append(
             [
                 {"Synset": word[0]},
-                {"Word": {word[1]: 1}},
+                {"Word": [_add_word_details(word[1], 1)]},
                 {"Synonyms": synonyms},
                 {"Hypernyms": hypernyms},
                 {"ConceptNet related terms": related_terms},
@@ -116,7 +128,7 @@ def synset_to_word():
     lines = [
         re.split(r"[ ]*[,\t\n][ ]*", x.strip()) for x in open("words.txt").readlines()
     ]
-    return [[l[0], l[1]] for l in lines if s == l[0] for s in synsets]
+    return [[l[0], l[1]] for l in lines for s in synsets if s == l[0]]
 
 
 def _preprocess_terms(terms: list):
@@ -127,18 +139,19 @@ def _preprocess_terms(terms: list):
     """
     all_terms = []
     for term in terms:
-        one_dict = {k: v for d in term for k, v in d.items() if k != "Synset"}
+        one_dict = [v for d in term for k, v in d.items() if k != "Synset"]
+        one_dict = list(chain.from_iterable(one_dict))
+        only_5_char = [t for t in one_dict if len(t.get("Term")) == 5]
         only_terms = []
-        for values in one_dict.values():
-            for k, v in values.items():
-                if k in only_terms:
-                    v = round(((v + only_terms.get(k)) / 2), 3)
-                    only_terms.remove(k)
-                only_terms.append({k.strip(): v})
-
-        only_terms = dict(ChainMap(*only_terms))
-        only_5_char = {k: v for k, v in only_terms.items() if len(k) == 5}
-        all_terms.append([*term[0].values(), only_5_char])
+        for t in only_5_char:
+            weight = t.get("Relatedness")
+            for elem in only_terms:
+                if t.get("Term") in elem:
+                    weight = round(((elem[1] + t.get("Relatedness")) / 2), 3)
+                    only_terms.remove(elem)
+            only_terms.append([t.get("Term"), weight, t.get("Frequency")])
+        if only_terms:
+            all_terms.append({term[0].get("Synset"): only_terms})
     return all_terms
 
 
@@ -149,11 +162,10 @@ def _reduce_by_difficulty(pairs: list):
     """
     all_terms = []
     diff = args.difficulty
-    for sys in pairs:
-        terms = []
-        [terms.append({k: v}) for k, v in sys[1].items() if sys[1].get(k) >= diff]
+    for syn in pairs:
+        terms = [term for s, term in syn.items() if term[0][1] >= diff]
         if terms:
-            all_terms.append([sys[0], dict(ChainMap(*terms))])
+            all_terms.append({list(syn.keys())[0]: terms[0]})
     return all_terms
 
 
@@ -162,10 +174,9 @@ def _reduce_per_synset(pairs: list):
     This function applies a filter reducing the number of pairs for each Synsnet.
     """
     reduced_terms = []
-    for sys in temp_pairs:
-        reduced_terms.append(
-            [sys[0], {k: sys[1][k] for k in list(sys[1])[: args.per_synset]}]
-        )
+    for syn in pairs:
+        terms = [term for s, term in syn.items()]
+        reduced_terms.append({list(syn.keys())[0]: terms[0][: args.per_synset]})
     return reduced_terms
 
 
@@ -179,11 +190,12 @@ def _create_final_pairs_file(pairs: list):
     os.chdir(args.image_path)
     final_pairs = []
     for pair in pairs:
-        for term in pair[1].items():
+        for synset, term in pair.items():
             image_path = (
-                os.getcwd() + "/" + pair[0] + "/" + str(choice(os.listdir(pair[0])))
+                os.getcwd() + "/" + synset + "/" + str(choice(os.listdir(synset)))
             )
-            final_pairs.append(term[0] + "\t" + image_path + "\n")
+            if term:
+                final_pairs.append(term[0][0] + "\t" + image_path + "\n")
 
     os.chdir(cur_dir)
     with open("image_data.tsv", "w", encoding="utf-8") as f:
@@ -213,9 +225,9 @@ def create_pairs(args: argparse.Namespace):
     if args.difficulty:
         temp_pairs = _reduce_by_difficulty(temp_pairs)
     elif args.per_synset:
-        temp_pairs = _reduce_by_difficulty(temp_pairs)
+        temp_pairs = _reduce_per_synset(temp_pairs)
     elif args.num_synsets:
-        temp_pairs = [random.choice(temp_pairs) for _ in range(args.num_synsets)]
+        temp_pairs = [choice(temp_pairs) for _ in range(args.num_synsets)]
 
     _create_final_pairs_file(temp_pairs)
 
@@ -250,6 +262,12 @@ if __name__ == "__main__":
         "--per_synset",
         type=int,
         help="Number of pairs per Synset",
+        required=False,
+    )
+    parser.add_argument(
+        "--frequency",
+        type=int,
+        help="Frequency threshold",
         required=False,
     )
     args = parser.parse_args()
