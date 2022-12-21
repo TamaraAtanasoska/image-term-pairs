@@ -298,7 +298,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--frequency",
-        type=int,
+        type=float,
         help="Frequency threshold",
         required=False,
     )
