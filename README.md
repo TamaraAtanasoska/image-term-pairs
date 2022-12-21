@@ -1,5 +1,20 @@
 # Image-term pairs for an image-grounded agreement game
 
+## Setup
+
+### Environment recreation 
+
+In the folder ```setup/``` you can find the respective environment replication and package requirements files. There are two options:
+
+  1. You can run ```pip install -r setup/requirements.txt``` to install the necessary packages in your existing environment.
+
+  2. If you are using [conda](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) to manage your virtual environments, you can replicate and activate the full exact environment with the following commands:
+
+   ```
+   conda env create --name <name> --file setup/conda.yml
+   conda activate <name>
+   ```
+
 ## Generating word-image pairs 
 
 This project aims to find image-term pairs for a collaborative, image-grounded [Wordle game](https://github.com/clp-research/slurk-bots/tree/master/wordle). The image-term pairs creation should be automated, able to be measured for difficulty and potential to spark [word-meaning negotiation sequences](https://journals.sagepub.com/doi/abs/10.1177/1461445619829234?journalCode=disa), and be fun enough for players to enjoy playing. 
@@ -34,3 +49,18 @@ python src/create_pairs.py
 --num_synsets #how many synsets for the pairs
 --per_synset #how many pairs per synset
 ```
+
+#### Relatedness scoring, word frequency and term sources
+
+##### Relatedness scoring 
+
+All the terms contain relatedness scores. They attempt to measure how related the terms are to the word representing the ImageNet Synset. 
+- The direct word representing the Synset, extracted from [words.txt](src/words.txt) has the score 1, the highest score for relatedness. 
+- The synonyms and hypernyms, retrieved through using the [wordhoard](https://wordhoard.readthedocs.io/en/latest/) library, have 0.8 and 0.6 as a score. This is a prefixed score that can be changed in the script [here](https://github.com/TamaraAtanasoska/image-term-pairs/blob/setup-files-dics/src/create_pairs.py#L55). The related terms from [ConceptNet](https://conceptnet.io/) come with their [own scoring](https://github.com/TamaraAtanasoska/image-term-pairs/blob/setup-files-dics/src/create_pairs.py#L72) retrievable from the API. If one is the direct mapping, 0 would be completely unrelated. This was already how the ConceptNet related terms were scored, and it was then replicated in the script own scorings. 
+- If a there are two different scores for a word, [they get averaged](https://github.com/TamaraAtanasoska/image-term-pairs/blob/setup-files-dics/src/create_pairs.py#L150) into one. 
+
+The APIs the ```wordhoard``` library uses to retrieve the synonyms and hypernyms are documented [here](https://github.com/johnbumgarner/wordhoard#sources). 
+
+##### Word frequency
+
+The "word frequency" refers to how often a word is featured in a corpus. The [wordfreq](https://github.com/rspeer/wordfreq) library features [multiple corpora](https://github.com/rspeer/wordfreq#sources-and-supported-languages) and combines the scores to get an approximation. [The script](https://github.com/TamaraAtanasoska/image-term-pairs/blob/setup-files-dics/src/create_pairs.py#L23) uses the special [zipf_frequency](https://github.com/rspeer/wordfreq#usage) for which values between 0 and 8 make the most sense. In this case, the higher number means more frequent. 
