@@ -42,12 +42,13 @@ Note: currently when the term-image pairs are built a random image is picked fro
 Options that can be passed to the pair creation script: 
 ```
 python src/create_pairs.py
---image_path #REQUIRED path to the images
---terms_path #path to a file with scored related terms
---difficulty #a score between 0-1 for relatedness between term and image
---frequency #frequency of word in copora, score between 0-8
---num_synsets #how many synsets for the pairs
---per_synset #how many pairs per synset
+--image_path <path> #REQUIRED path to the images
+--terms_path <path> #path to a file with scored related terms
+--difficulty <float> #a score between 0-1 for relatedness between term and image
+--frequency <float> #frequency of word in copora, score between 0-8
+--num_synsets <int> #how many synsets for the pairs
+--per_synset <int> #how many pairs per synset
+--exclude_direct_mapping #exclude the direct Synset-word mapping terms
 ```
 
 #### Relatedness scoring, word frequency and term sources

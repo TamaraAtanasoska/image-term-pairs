@@ -195,6 +195,19 @@ def _reduce_per_synset(pairs: list):
     return reduced_terms
 
 
+def _exclude_direct_mapping(pairs: list):
+    """
+    This function excludes the direct mapping of the Synset to word terms. Those
+    are all the terms that have scoring of 1 for relatedness.
+    """
+    reduced_terms = []
+    for syn in pairs:
+        terms = [term for s, term in syn.items() if term[0][1] != 1]
+        if terms:
+            reduced_terms.append({list(syn.keys())[0]: terms[0]})
+    return reduced_terms
+
+
 def _create_final_pairs_file(pairs: list):
     """
     This function writes to a .tsv file with the final version of the pairs to be
@@ -239,6 +252,8 @@ def create_pairs(args: argparse.Namespace):
     temp_pairs = possible_pairs
     if args.difficulty:
         temp_pairs = _reduce_by_difficulty(temp_pairs)
+    elif args.exclude_direct_mapping:
+        temp_pairs = _exclude_direct_mapping(temp_pairs)
     elif args.per_synset:
         temp_pairs = _reduce_per_synset(temp_pairs)
     elif args.num_synsets:
@@ -283,8 +298,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--frequency",
-        type=int,
+        type=float,
         help="Frequency threshold",
+        required=False,
+    )
+    parser.add_argument(
+        "--exclude_direct_mapping",
+        action=argparse.BooleanOptionalAction,
+        help="Exclude direct Synset-word mapping terms",
         required=False,
     )
     args = parser.parse_args()
