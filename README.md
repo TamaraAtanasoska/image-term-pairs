@@ -1,5 +1,20 @@
 # Image-term pairs for an image-grounded agreement game
 
+## Setup
+
+### Environment recreation 
+
+In the folder ```setup/``` you can find the respective environment replication and package requirements files. There are two options:
+
+  1. You can run ```pip install -r setup/requirements.txt``` to install the necessary packages in your existing environment.
+
+  2. If you are using [conda](https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html) to manage your virtual environments, you can replicate and activate the full exact environment with the following commands:
+
+   ```
+   conda env create --name <name> --file setup/conda.yml
+   conda activate <name>
+   ```
+
 ## Generating word-image pairs 
 
 This project aims to find image-term pairs for a collaborative, image-grounded [Wordle game](https://github.com/clp-research/slurk-bots/tree/master/wordle). The image-term pairs creation should be automated, able to be measured for difficulty and potential to spark [word-meaning negotiation sequences](https://journals.sagepub.com/doi/abs/10.1177/1461445619829234?journalCode=disa), and be fun enough for players to enjoy playing. 
