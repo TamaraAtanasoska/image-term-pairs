@@ -85,7 +85,7 @@ def generate_file(synsets_words: list):
     file_path = os.getcwd() + "/" + filename
 
     print("Number of words to process: ", len(synsets_words))
-    for num_word, word in enumerate(synsets_words[:20]):
+    for num_word, word in enumerate(synsets_words):
         related_terms = get_related_terms(word[1])
         synonyms, hypernyms = get_syn_hyper(word[1])
 
