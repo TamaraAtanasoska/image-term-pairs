@@ -4,7 +4,7 @@
 import React, { useState } from "react";
 import { css, jsx } from "@emotion/react";
 import { ImageWordPair } from "../App";
-
+export const annotationOutputName = "annotationOutput";
 type RatingValues = "good-pair" | "bad-pair" | "bad-image" | "bad-word";
 
 export interface ExportItem extends ImageWordPair {
@@ -15,8 +15,8 @@ export interface ExportItem extends ImageWordPair {
   };
 }
 
-const handleExportToFile = (data: any) => {
-  const fileData = JSON.stringify(data);
+const handleExportToFile = () => {
+  const fileData = localStorage.getItem(annotationOutputName) || "";
   const blob = new Blob([fileData], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -44,15 +44,24 @@ export const PairScreener = ({
   const handleSubmit = (event: React.SyntheticEvent) => {
     event.preventDefault();
 
-    setExportData([
-      ...exportData,
-      {
-        rating: currentRating,
-        word: pairsMap[indexes[currentImage]].word,
-        path: indexes[currentImage],
-        size,
-      },
-    ]);
+    const newPairAnnotation = {
+      rating: currentRating,
+      word: pairsMap[indexes[currentImage]].word,
+      path: indexes[currentImage],
+      size,
+    };
+
+    const annotationOutput = JSON.parse(
+      localStorage.getItem(annotationOutputName) || "[]"
+    ) as ExportItem[];
+
+    annotationOutput.push(newPairAnnotation);
+    localStorage.setItem(
+      annotationOutputName,
+      JSON.stringify(annotationOutput)
+    );
+
+    setExportData([...exportData, newPairAnnotation]);
 
     if (currentImage < indexes.length - 1) {
       setCurrentImage(currentImage + 1);
@@ -73,13 +82,7 @@ export const PairScreener = ({
           justifyContent: "flex-end",
         }}
       >
-        <button
-          onClick={() => {
-            handleExportToFile(exportData);
-          }}
-        >
-          Download .json export
-        </button>
+        <button onClick={handleExportToFile}>Download .json export</button>
       </div>
       <div css={{ display: "flex" }}>
         <div css={{ width: "70%", maxWidth: "70%" }}>
