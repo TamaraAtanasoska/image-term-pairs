@@ -20,7 +20,15 @@ The UI app needs to access images to annotate from the `./ui/public/data/images`
 You can create a symlink by running the following command from the root of the repository.
 
 ```bash
-ln -s /your/image/library/path ./ui/public/images
+ln -s /your/image/library/path ./ui/public/data/images
+```
+
+### Install all the dependencies
+
+From the `./ui/` folder, run:
+
+```bash
+yarn
 ```
 
 ### Run the UI app
@@ -28,7 +36,7 @@ ln -s /your/image/library/path ./ui/public/images
 From the `./ui/` folder, run:
 
 ```bash
-npm start
+yarn start
 ```
 
 Which will start the app in the development mode.\
